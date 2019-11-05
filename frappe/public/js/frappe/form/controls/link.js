@@ -25,8 +25,10 @@ frappe.ui.form.ControlLink = frappe.ui.form.ControlData.extend({
 		this.$input.on("focus", function() {
 			setTimeout(function() {
 				if(me.$input.val() && me.get_options()) {
+					let doctype = me.get_options();
+					let name = me.$input.val();
 					me.$link.toggle(true);
-					me.$link_open.attr('href', '#Form/' + me.get_options() + '/' + me.$input.val());
+					me.$link_open.attr('href', frappe.utils.get_form_link(doctype, name));
 				}
 
 				if(!me.$input.val()) {
@@ -157,7 +159,7 @@ frappe.ui.form.ControlLink = frappe.ui.form.ControlData.extend({
 			me.set_custom_query(args);
 
 			frappe.call({
-				type: "GET",
+				type: "POST",
 				method:'frappe.desk.search.search_link',
 				no_spinner: true,
 				args: args,
@@ -167,13 +169,12 @@ frappe.ui.form.ControlLink = frappe.ui.form.ControlData.extend({
 					}
 
 					if(!me.df.only_select) {
-						if(frappe.model.can_create(doctype)
-							&& me.df.fieldtype !== "Dynamic Link") {
+						if(frappe.model.can_create(doctype)) {
 							// new item
 							r.results.push({
 								label: "<span class='text-primary link-option'>"
 									+ "<i class='fa fa-plus' style='margin-right: 5px;'></i> "
-									+ __("Create a new {0}", [__(me.df.options)])
+									+ __("Create a new {0}", [__(me.get_options())])
 									+ "</span>",
 								value: "create_new__link_option",
 								action: me.new_doc

@@ -70,7 +70,7 @@ def to_timedelta(time_str):
 	else:
 		return time_str
 
-def add_to_date(date, years=0, months=0, days=0, hours=0, as_string=False, as_datetime=False):
+def add_to_date(date, years=0, months=0, days=0, hours=0, minutes=0, seconds=0, as_string=False, as_datetime=False):
 	"""Adds `days` to the given date"""
 	from dateutil.relativedelta import relativedelta
 
@@ -86,7 +86,7 @@ def add_to_date(date, years=0, months=0, days=0, hours=0, as_string=False, as_da
 			as_datetime = True
 		date = parser.parse(date)
 
-	date = date + relativedelta(years=years, months=months, days=days, hours=hours)
+	date = date + relativedelta(years=years, months=months, days=days, hours=hours, minutes=minutes, seconds=seconds)
 
 	if as_string:
 		if as_datetime:
@@ -107,6 +107,11 @@ def add_years(date, years):
 
 def date_diff(string_ed_date, string_st_date):
 	return (getdate(string_ed_date) - getdate(string_st_date)).days
+
+def month_diff(string_ed_date, string_st_date):
+	ed_date = getdate(string_ed_date)
+	st_date = getdate(string_st_date)
+	return (ed_date.year - st_date.year) * 12 + ed_date.month - st_date.month + 1
 
 def time_diff(string_ed_date, string_st_date):
 	return get_datetime(string_ed_date) - get_datetime(string_st_date)
@@ -342,6 +347,10 @@ def rounded(num, precision=0, rounding="auto"):
 		num = floor if (floor % 2 == 0) else floor + 1
 	else:
 		num = round(num) if rounding == "auto" else math.floor(num) if rounding == "down" else math.ceil(num)
+		if decimal_part == 0.5:
+			num = floor + 1
+		else:
+			num = round(num)
 
 	return (num / multiplier) if precision else num
 

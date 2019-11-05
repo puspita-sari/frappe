@@ -122,9 +122,14 @@ def get_context(context):
 			self.send_a_slack_msg(doc, context)
 
 		if self.set_property_after_alert:
-			frappe.db.set_value(doc.doctype, doc.name, self.set_property_after_alert,
-				self.property_value, update_modified = False)
-			doc.set(self.set_property_after_alert, self.property_value)
+			allow_update = True
+			if doc.docstatus == 1 and not doc.meta.get_field(self.set_property_after_alert).allow_on_submit:
+				allow_update = False
+
+			if allow_update:
+				frappe.db.set_value(doc.doctype, doc.name, self.set_property_after_alert,
+					self.property_value, update_modified = False)
+				doc.set(self.set_property_after_alert, self.property_value)
 
 	def send_an_email(self, doc, context):
 		from email.utils import formataddr
@@ -212,8 +217,15 @@ def get_context(context):
 				please enable Allow Print For {0} in Print Settings""".format(status)),
 				title=_("Error in Notification"))
 		else:
-			return [{"print_format_attachment":1, "doctype":doc.doctype, "name": doc.name,
-				"print_format":self.print_format, "print_letterhead": print_settings.with_letterhead}]
+			return [{
+				"print_format_attachment": 1,
+				"doctype": doc.doctype,
+				"name": doc.name,
+				"print_format": self.print_format,
+				"print_letterhead": print_settings.with_letterhead,
+				"lang": frappe.db.get_value('Print Format', self.print_format, 'default_print_language')
+					if self.print_format else 'en'
+			}]
 
 
 	def get_template(self):

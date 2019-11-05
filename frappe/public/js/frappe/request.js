@@ -4,6 +4,7 @@
 // My HTTP Request
 
 frappe.provide('frappe.request');
+frappe.provide('frappe.request.error_handlers');
 frappe.request.url = '/';
 frappe.request.ajax_count = 0;
 frappe.request.waiting_for_ajax = [];
@@ -30,7 +31,8 @@ frappe.call = function(opts) {
 			indicator: 'orange',
 			message: __('You are not connected to Internet. Retry after sometime.')
 		}, 3);
-		return;
+		opts.always && opts.always();
+		return $.ajax();
 	}
 	if (typeof arguments[0]==='string') {
 		opts = {
@@ -187,7 +189,7 @@ frappe.request.call = function(opts) {
 		type: opts.type,
 		dataType: opts.dataType || 'json',
 		async: opts.async,
-		headers: { 
+		headers: {
 			"X-Frappe-CSRF-Token": frappe.csrf_token,
 			"Accept": "application/json"
 		},
@@ -305,11 +307,23 @@ frappe.request.cleanup = function(opts, r) {
 			return;
 		}
 
+		// global error handlers
+		if (r.exc_type) {
+			let handlers = frappe.request.error_handlers[r.exc_type] || [];
+			handlers.forEach(handler => {
+				handler(r);
+			});
+		}
+
 		// show messages
 		if(r._server_messages && !opts.silent) {
-			r._server_messages = JSON.parse(r._server_messages);
-			frappe.hide_msgprint();
-			frappe.msgprint(r._server_messages);
+			let handlers = frappe.request.error_handlers[r.exc_type] || [];
+			// dont show server messages if their handlers exist
+			if (!handlers.length) {
+				r._server_messages = JSON.parse(r._server_messages);
+				frappe.hide_msgprint();
+				frappe.msgprint(r._server_messages);
+			}
 		}
 
 		// show errors
@@ -372,15 +386,20 @@ frappe.after_ajax = function(fn) {
 
 frappe.request.report_error = function(xhr, request_opts) {
 	var data = JSON.parse(xhr.responseText);
+	var exc;
 	if (data.exc) {
-		var exc = (JSON.parse(data.exc) || []).join("\n");
+		try {
+			exc = (JSON.parse(data.exc) || []).join("\n");
+		} catch (e) {
+			exc = data.exc;
+		}
 		delete data.exc;
 	} else {
-		var exc = "";
+		exc = "";
 	}
 
 	if (exc) {
-		var error_report_email = (frappe.boot.error_report_email || []).join(", ");
+		var error_report_email = frappe.boot.error_report_email;
 		var error_message = '<div>\
 			<pre style="max-height: 300px; margin-top: 7px;">'
 				+ exc.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>'
@@ -443,6 +462,11 @@ frappe.request.cleanup_request_opts = function(request_opts) {
 	}
 	return request_opts;
 };
+
+frappe.request.on_error = function(error_type, handler) {
+	frappe.request.error_handlers[error_type] = frappe.request.error_handlers[error_type] || [];
+	frappe.request.error_handlers[error_type].push(handler);
+}
 
 $(document).ajaxSend(function() {
 	frappe.request.ajax_count++;

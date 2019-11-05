@@ -233,7 +233,7 @@ class Meta(Document):
 		are to be fetched and updated for a particular link field
 
 		These fields are of type Data, Link, Text, Readonly and their
-		options property is set as `link_fieldname`.`source_fieldname`'''
+		fetch_from property is set as `link_fieldname`.`source_fieldname`'''
 
 		out = []
 
@@ -480,7 +480,7 @@ def get_field_currency(df, doc=None):
 
 		if ":" in cstr(df.get("options")):
 			split_opts = df.get("options").split(":")
-			if len(split_opts)==3:
+			if len(split_opts)==3 and doc.get(split_opts[1]):
 				currency = frappe.get_cached_value(split_opts[0], doc.get(split_opts[1]), split_opts[2])
 		else:
 			currency = doc.get(df.get("options"))

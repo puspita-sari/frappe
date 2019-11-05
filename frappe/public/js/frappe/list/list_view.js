@@ -133,10 +133,18 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 			this.meta.track_seen ? '_seen' : null,
 			this.sort_by,
 			'enabled',
-			'disabled'
+			'disabled',
+			'color'
 		);
 
 		fields.forEach(f => this._add_field(f));
+
+		this.fields.forEach(f => {
+			const df = frappe.meta.get_docfield(f[1], f[0]);
+			if (df && df.fieldtype === 'Currency' && df.options && !df.options.includes(':')) {
+				this._add_field(df.options);
+			}
+		});
 	}
 
 	patch_refresh_and_load_lib() {
@@ -283,8 +291,10 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		if (frappe.route_options) {
 			this.filters = this.parse_filters_from_route_options();
 
-			return this.filter_area.clear(false)
-				.then(() => this.filter_area.set(this.filters));
+			if (this.filters.length > 0) {
+				return this.filter_area.clear(false)
+					.then(() => this.filter_area.set(this.filters));
+			}
 		}
 
 		return Promise.resolve();
@@ -589,19 +599,33 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	get_count_str() {
-		const current_count = this.data.length;
+		let current_count = this.data.length;
+		let count_without_children = this.data.uniqBy(d => d.name).length;
+
+		const filters = this.get_filters_for_args();
+		const with_child_table_filter = filters.some(filter => {
+			return filter[0] !== this.doctype;
+		});
+
+		const fields = [
+			// cannot break this line as it adds extra \n's and \t's which breaks the query
+			`count(${with_child_table_filter ? 'distinct': ''}${frappe.model.get_full_column_name('name', this.doctype)}) AS total_count`
+		];
 
 		return frappe.call({
 			type: 'GET',
 			method: this.method,
 			args: {
 				doctype: this.doctype,
-				filters: this.get_filters_for_args(),
-				fields: [`count(distinct ${frappe.model.get_full_column_name('name', this.doctype)}) as total_count`],
+				filters,
+				fields,
 			}
 		}).then(r => {
 			this.total_count = r.message.values[0][0] || current_count;
-			const str = __('{0} of {1}', [current_count, this.total_count]);
+			let str = __('{0} of {1}', [current_count, this.total_count]);
+			if (count_without_children !== current_count) {
+				str = __('{0} of {1} ({2} rows with children)', [count_without_children, this.total_count, current_count]);
+			}
 			return str;
 		});
 	}
@@ -633,7 +657,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 			.includes(user) ? '' : 'bold';
 
 		let subject_html = `
-			<input class="level-item list-row-checkbox hidden-xs" type="checkbox" data-name="${doc.name}">
+			<input class="level-item list-row-checkbox hidden-xs" type="checkbox" data-name="${escape(doc.name)}">
 			<span class="level-item" style="margin-bottom: 1px;">
 				<i class="octicon octicon-heart like-action ${heart_class}"
 					data-name="${doc.name}" data-doctype="${this.doctype}"
@@ -856,7 +880,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 						}
 						return return_value;
 					});
-
+					this.toggle_result_area();
 					this.render();
 				});
 		});
@@ -889,7 +913,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 
 	get_checked_items(only_docnames) {
 		const docnames = Array.from(this.$checks || [])
-			.map(check => $(check).data().name);
+			.map(check => cstr(unescape($(check).data().name)));
 
 		if (only_docnames) return docnames;
 
@@ -1052,7 +1076,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 			return {
 				label: __('Delete'),
 				action: () => {
-					const docnames = this.get_checked_items(true);
+					const docnames = this.get_checked_items(true).map(docname => docname.toString());
 					frappe.confirm(__('Delete {0} items permanently?', [docnames.length]),
 						() => bulk_operations.delete(docnames, this.refresh));
 				},

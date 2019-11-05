@@ -78,19 +78,35 @@ def send(recipients=None, sender=None, subject=None, message=None, text_content=
 		except HTMLParser.HTMLParseError:
 			text_content = "See html attachment"
 
-	if reference_doctype and reference_name:
-		unsubscribed = [d.email for d in frappe.db.get_all("Email Unsubscribe", "email",
-			{"reference_doctype": reference_doctype, "reference_name": reference_name})]
+	recipients = list(set(recipients))
+	cc = list(set(cc))
 
-		unsubscribed += [d.email for d in frappe.db.get_all("Email Unsubscribe", "email",
-			{"global_unsubscribe": 1})]
-	else:
-		unsubscribed = []
+	all_ids = recipients + cc
 
-	recipients = [r for r in list(set(recipients)) if r and r not in unsubscribed]
+	unsubscribed = frappe.db.sql_list('''
+		SELECT
+			distinct email
+		from
+			`tabEmail Unsubscribe`
+		where
+			email in %(all_ids)s
+			and (
+				(
+					reference_doctype = %(reference_doctype)s
+					and reference_name = %(reference_name)s
+				)
+				or global_unsubscribe = 1
+			)
+	''', {
+		'all_ids': all_ids,
+		'reference_doctype': reference_doctype,
+		'reference_name': reference_name,
+	})
+
+	recipients = [r for r in recipients if r and r not in unsubscribed]
 
 	if cc:
-		cc = [r for r in list(set(cc)) if r and r not in unsubscribed]
+		cc = [r for r in cc if r and r not in unsubscribed]
 
 	if not recipients and not cc:
 		# Recipients may have been unsubscribed, exit quietly
@@ -175,7 +191,8 @@ def get_email_queue(recipients, sender, subject, **kwargs):
 			if att.get('fid'):
 				_attachments.append(att)
 			elif att.get("print_format_attachment") == 1:
-				att['lang'] = frappe.local.lang
+				if not att.get('lang', None):
+					att['lang'] = frappe.local.lang
 				att['print_letterhead'] = kwargs.get('print_letterhead')
 				_attachments.append(att)
 		e.attachments = json.dumps(_attachments)

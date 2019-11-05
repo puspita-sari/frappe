@@ -23,7 +23,7 @@ if sys.version[0] == '2':
 	reload(sys)
 	sys.setdefaultencoding("utf-8")
 
-__version__ = '11.1.4'
+__version__ = '11.1.44'
 __title__ = "Frappe Framework"
 
 local = Local()
@@ -187,15 +187,20 @@ def connect(site=None, db_name=None):
 	local.db = Database(user=db_name or local.conf.db_name)
 	set_user("Administrator")
 
-def connect_read_only():
+def connect_replica():
 	from frappe.database import Database
+	user = local.conf.db_name
+	password = local.conf.db_password
 
-	local.read_only_db = Database(local.conf.slave_host, local.conf.slave_db_name,
-		local.conf.slave_db_password)
+	if local.conf.different_credentials_for_replica:
+		user = local.conf.replica_db_name
+		password = local.conf.replica_db_password
+
+	local.replica_db = Database(host=local.conf.replica_host, user=user, password=password)
 
 	# swap db connections
-	local.master_db = local.db
-	local.db = local.read_only_db
+	local.primary_db = local.db
+	local.db = local.replica_db
 
 def get_site_config(sites_path=None, site_path=None):
 	"""Returns `site_config.json` combined with `sites/common_site_config.json`.
@@ -273,7 +278,7 @@ def errprint(msg):
 	if not request or (not "cmd" in local.form_dict) or conf.developer_mode:
 		print(msg.encode('utf-8'))
 
-	error_log.append(msg)
+	error_log.append({"exc": msg})
 
 def log(msg):
 	"""Add to `debug_log`.
@@ -334,6 +339,10 @@ def msgprint(msg, title=None, raise_exception=0, as_table=False, indicator=None,
 		out.alert = 1
 
 	message_log.append(json.dumps(out))
+
+	if raise_exception and hasattr(raise_exception, '__name__'):
+		local.response['exc_type'] = raise_exception.__name__
+
 	_raise_exception()
 
 def clear_messages():
@@ -495,13 +504,17 @@ def whitelist(allow_guest=False, xss_safe=False):
 def read_only():
 	def innfn(fn):
 		def wrapper_fn(*args, **kwargs):
-			if conf.use_slave_for_read_only:
-				connect_read_only()
+			if conf.read_from_replica:
+				connect_replica()
 
-			retval = fn(*args, **get_newargs(fn, kwargs))
-
-			if local and hasattr(local, 'master_db'):
-				local.db = local.master_db
+			try:
+				retval = fn(*args, **get_newargs(fn, kwargs))
+			except:
+				raise
+			finally:
+				if local and hasattr(local, 'primary_db'):
+					local.db.close()
+					local.db = local.primary_db
 
 			return retval
 		return wrapper_fn
@@ -916,11 +929,15 @@ def get_hooks(hook=None, default=None, app_name=None):
 					append_hook(hooks, key, getattr(app_hooks, key))
 		return hooks
 
+	no_cache = conf.developer_mode or False
 
 	if app_name:
 		hooks = _dict(load_app_hooks(app_name))
 	else:
-		hooks = _dict(cache().get_value("app_hooks", load_app_hooks))
+		if no_cache:
+			hooks = _dict(load_app_hooks())
+		else:
+			hooks = _dict(cache().get_value("app_hooks", load_app_hooks))
 
 	if hook:
 		return hooks.get(hook) or (default if default is not None else [])

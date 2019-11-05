@@ -104,7 +104,9 @@ frappe.views.BaseList = class BaseList {
 			}
 			return f;
 		});
-		//de-dup
+		// remove null or undefined values
+		this.fields = this.fields.filter(Boolean);
+		//de-duplicate
 		this.fields = this.fields.uniqBy(f => f[0] + f[1]);
 	}
 
@@ -363,6 +365,7 @@ frappe.views.BaseList = class BaseList {
 			this.toggle_result_area();
 			this.before_render();
 			this.render();
+			this.after_render();
 			this.freeze(false);
 		});
 	}
@@ -385,6 +388,10 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	before_render() {
+
+	}
+
+	after_render() {
 
 	}
 
@@ -612,7 +619,8 @@ class FilterArea {
 				options: options,
 				fieldname: df.fieldname,
 				condition: condition,
-				onchange: () => this.refresh_list_view()
+				onchange: () => this.refresh_list_view(),
+				ignore_link_validation: fieldtype === 'Dynamic Link'
 			};
 		}));
 

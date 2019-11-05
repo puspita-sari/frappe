@@ -166,10 +166,10 @@ class Document(BaseDocument):
 			self.latest = frappe.get_doc(self.doctype, self.name)
 		return self.latest
 
-	def check_permission(self, permtype='read', permlabel=None):
+	def check_permission(self, permtype='read', permlevel=None):
 		"""Raise `frappe.PermissionError` if not permitted"""
 		if not self.has_permission(permtype):
-			self.raise_no_permission_to(permlabel or permtype)
+			self.raise_no_permission_to(permlevel or permtype)
 
 	def has_permission(self, permtype="read", verbose=False):
 		"""Call `frappe.has_permission` if `self.flags.ignore_permissions`
@@ -213,12 +213,12 @@ class Document(BaseDocument):
 		self.set_docstatus()
 		self.check_if_latest()
 		self.run_method("before_insert")
+		self._validate_links()
 		self.set_new_name()
 		self.set_parent_in_children()
 		self.validate_higher_perm_levels()
 
 		self.flags.in_insert = True
-		self._validate_links()
 		self.run_before_save_methods()
 		self._validate()
 		self.set_docstatus()
@@ -989,7 +989,7 @@ class Document(BaseDocument):
 			frappe.db.commit()
 
 	def db_get(self, fieldname):
-		'''get database vale for this fieldname'''
+		'''get database value for this fieldname'''
 		return frappe.db.get_value(self.doctype, self.name, fieldname)
 
 	def check_no_back_links_exist(self):
@@ -1141,14 +1141,13 @@ class Document(BaseDocument):
 			user = frappe.session.user
 
 		if self.meta.track_seen:
-			if self._seen:
-				_seen = json.loads(self._seen)
-			else:
-				_seen = []
+			_seen = self.get('_seen') or []
+			_seen = frappe.parse_json(_seen)
 
 			if user not in _seen:
 				_seen.append(user)
-				self.db_set('_seen', json.dumps(_seen), update_modified=False)
+				frappe.db.set_value(self.doctype, self.name, '_seen', json.dumps(_seen), update_modified=False)
+				self._seen = json.dumps(_seen)
 				frappe.local.flags.commit = True
 
 	def add_viewed(self, user=None):
@@ -1180,6 +1179,12 @@ class Document(BaseDocument):
 		if not self.get("__onload"):
 			self.set("__onload", frappe._dict())
 		self.get("__onload")[key] = value
+
+	def get_onload(self, key=None):
+		if not key:
+			return self.get("__onload", frappe._dict())
+
+		return self.get('__onload')[key]
 
 	def update_timeline_doc(self):
 		if frappe.flags.in_install or not self.meta.get("timeline_field"):
@@ -1216,7 +1221,7 @@ class Document(BaseDocument):
 
 		if file_lock.lock_exists(self.get_signature()):
 			frappe.throw(_('This document is currently queued for execution. Please try again'),
-				title=_('Document Queued'), indicator='red')
+				title=_('Document Queued'))
 
 		self.lock()
 		enqueue('frappe.model.document.execute_action', doctype=self.doctype, name=self.name,

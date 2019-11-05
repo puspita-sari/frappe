@@ -197,6 +197,10 @@ class Database:
 					frappe.log(values)
 					frappe.log(">>>>")
 				self._cursor.execute(query, values)
+
+				if frappe.flags.in_migrate:
+					self.log_touched_tables(query, values)
+
 			else:
 				if debug:
 					if explain:
@@ -208,6 +212,9 @@ class Database:
 					frappe.log(">>>>")
 
 				self._cursor.execute(query)
+
+				if frappe.flags.in_migrate:
+					self.log_touched_tables(query)
 
 			if debug:
 				time_end = time()
@@ -280,7 +287,7 @@ class Database:
 		executed in one transaction. This is to ensure that writes are always flushed otherwise this
 		could cause the system to hang."""
 		if self.transaction_writes and \
-			query and query.strip().split()[0].lower() in ['start', 'alter', 'drop', 'create', "begin", "truncate"]:
+			query and query.strip().split()[0].lower() in ['start', 'alter', 'drop', 'create', "begin", "truncate", "lock"]:
 			raise Exception('This statement can cause implicit commit')
 
 		if query and query.strip().lower() in ('commit', 'rollback'):
@@ -967,9 +974,43 @@ class Database:
 
 	def get_descendants(self, doctype, name):
 		'''Return descendants of the current record'''
-		lft, rgt = self.get_value(doctype, name, ('lft', 'rgt'))
-		return self.sql_list('''select name from `tab{doctype}`
-			where lft > {lft} and rgt < {rgt}'''.format(doctype=doctype, lft=lft, rgt=rgt))
+		node_location_indexes = self.get_value(doctype, name, ('lft', 'rgt'))
+		if node_location_indexes:
+			lft, rgt = node_location_indexes
+			return self.sql_list('''select name from `tab{doctype}`
+				where lft > {lft} and rgt < {rgt}'''.format(doctype=doctype, lft=lft, rgt=rgt))
+		else:
+			# when document does not exist
+			return []
+
+	def log_touched_tables(self, query, values=None):
+		if values:
+			query = self._cursor.mogrify(query, values)
+		if query.strip().lower().split()[0] in ('insert', 'delete', 'update', 'alter'):
+			# single_word_regex is designed to match following patterns
+			# `tabXxx`, tabXxx and "tabXxx"
+
+			# multi_word_regex is designed to match following patterns
+			# `tabXxx Xxx` and "tabXxx Xxx"
+
+			# ([`"]?) Captures " or ` at the begining of the table name (if provided)
+			# \1 matches the first captured group (quote character) at the end of the table name
+			# multi word table name must have surrounding quotes.
+
+			# (tab([A-Z]\w+)( [A-Z]\w+)*) Captures table names that start with "tab"
+			# and are continued with multiple words that start with a captital letter
+			# e.g. 'tabXxx' or 'tabXxx Xxx' or 'tabXxx Xxx Xxx' and so on
+
+			single_word_regex = r'([`"]?)(tab([A-Z]\w+))\1'
+			multi_word_regex = r'([`"])(tab([A-Z]\w+)( [A-Z]\w+)+)\1'
+			tables = []
+			for regex in (single_word_regex, multi_word_regex):
+				tables += [groups[1] for groups in re.findall(regex, query)]
+
+			if frappe.flags.touched_tables is None:
+				frappe.flags.touched_tables = set()
+			frappe.flags.touched_tables.update(tables)
+
 
 def enqueue_jobs_after_commit():
 	if frappe.flags.enqueue_after_commit and len(frappe.flags.enqueue_after_commit) > 0:

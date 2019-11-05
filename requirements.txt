@@ -15,7 +15,7 @@ rauth>=0.6.2
 requests
 redis==2.10.6
 selenium
-babel
+babel==2.6.0
 ipython
 html2text==2016.9.19
 email_reply_parser
@@ -34,8 +34,8 @@ ndg-httpsclient
 pyasn1
 zxcvbn-python
 unittest-xml-reporting
-oauthlib==2.1.0
-requests-oauthlib==1.1.0
+oauthlib
+requests-oauthlib
 pdfkit
 PyJWT
 PyPDF2

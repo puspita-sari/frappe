@@ -172,6 +172,9 @@ class DatabaseQuery(object):
 				except ValueError:
 					self.fields = [f.strip() for f in self.fields.split(",")]
 
+		# remove empty strings / nulls in fields
+		self.fields = [f for f in self.fields if f]
+
 		for filter_name in ["filters", "or_filters"]:
 			filters = getattr(self, filter_name)
 			if isinstance(filters, string_types):
@@ -378,7 +381,7 @@ class DatabaseQuery(object):
 
 		elif f.operator.lower() in ('in', 'not in'):
 			values = f.value or ''
-			if not isinstance(values, (list, tuple)):
+			if isinstance(values, frappe.string_types):
 				values = values.split(",")
 
 			fallback = "''"

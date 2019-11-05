@@ -28,7 +28,7 @@ frappe.ui.form.Timeline = class Timeline {
 			render_input: true,
 			only_input: true,
 			on_submit: (val) => {
-				val && this.insert_comment("Comment", val, this.comment_area.button);
+				strip_html(val) && this.insert_comment("Comment", val, this.comment_area.button);
 			}
 		});
 
@@ -301,7 +301,7 @@ frappe.ui.form.Timeline = class Timeline {
 	}
 
 	prepare_timeline_item(c) {
-		if(!c.sender) c.sender = c.owner;
+		if(!c.sender) c.sender = c.owner || 'Guest';
 
 		if(c.sender && c.sender.indexOf("<")!==-1) {
 			c.sender = c.sender.split("<")[1].split(">")[0];
@@ -361,7 +361,6 @@ frappe.ui.form.Timeline = class Timeline {
 			} else {
 				c.content_html = c.content;
 				c.content_html = frappe.utils.strip_whitespace(c.content_html);
-				c.content_html = c.content_html.replace(/&lt;/g,"<").replace(/&gt;/g,">");
 			}
 
 			// bold @mentions
@@ -377,7 +376,6 @@ frappe.ui.form.Timeline = class Timeline {
 					@abc with the below line of code.
 				*/
 
-				c.content_html = c.content_html.replace(/(<[a][^>]*>)/g, "");
 				// bold the @mentions
 				c.content_html = c.content_html.replace(/(@[^\s@]*)@[^\s@|<]*/g, "<b>$1</b>");
 			}

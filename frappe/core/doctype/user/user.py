@@ -93,7 +93,7 @@ class User(Document):
 		clear_notifications(user=self.name)
 		frappe.clear_cache(user=self.name)
 		self.send_password_notification(self.__new_password)
-		create_contact(self)
+		create_contact(self, ignore_mandatory=True)
 		if self.name not in ('Administrator', 'Guest') and not self.user_image:
 			frappe.enqueue('frappe.core.doctype.user.user.update_gravatar', name=self.name)
 
@@ -153,7 +153,7 @@ class User(Document):
 		if new_password and not self.flags.in_insert:
 			_update_password(user=self.name, pwd=new_password, logout_all_sessions=self.logout_all_sessions)
 
-			if self.send_password_update_notification:
+			if self.send_password_update_notification and self.enabled:
 				self.password_update_mail(new_password)
 				frappe.msgprint(_("New password emailed"))
 
@@ -329,6 +329,12 @@ class User(Document):
 			where communication_type in ('Chat', 'Notification')
 			and reference_doctype='User'
 			and (reference_name=%s or owner=%s)""", (self.name, self.name))
+
+		# unlink contact
+		frappe.db.sql("""update `tabContact`
+			set user=null
+			where user=%s""", (self.name))
+
 
 	def before_rename(self, old_name, new_name, merge=False):
 		self.check_demo()
@@ -1057,7 +1063,7 @@ def update_roles(role_profile):
 		user.set('roles', [])
 		user.add_roles(*roles)
 
-def create_contact(user, ignore_links=False):
+def create_contact(user, ignore_links=False, ignore_mandatory=False):
 	if user.name in ["Administrator", "Guest"]: return
 
 	if not frappe.db.get_value("Contact", {"email_id": user.email}):
@@ -1070,7 +1076,7 @@ def create_contact(user, ignore_links=False):
 			"gender": user.gender,
 			"phone": user.phone,
 			"mobile_no": user.mobile_no
-		}).insert(ignore_permissions=True, ignore_links=ignore_links)
+		}).insert(ignore_permissions=True, ignore_links=ignore_links, ignore_mandatory=ignore_mandatory)
 
 
 @frappe.whitelist()

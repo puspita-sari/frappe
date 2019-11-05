@@ -77,8 +77,15 @@ frappe.get_route = function(route) {
 	// for app
 	route = frappe.get_raw_route_str(route).split('/');
 	route = $.map(route, frappe._decode_str);
-	var parts = route[route.length - 1].split("?");
-	route[route.length - 1] = parts[0];
+	var parts = null;
+	var doc_name = route[route.length - 1];
+	// if the last part contains ? then check if it is valid query string
+	if(doc_name.indexOf("?") < doc_name.indexOf("=")){
+		parts = doc_name.split("?");
+		route[route.length - 1] = parts[0];
+	} else {
+		parts = doc_name;
+	}
 	if (parts.length > 1) {
 		var query_params = frappe.utils.get_query_params(parts[1]);
 		frappe.route_options = $.extend(frappe.route_options || {}, query_params);
@@ -168,6 +175,9 @@ frappe.set_re_route = function() {
 	frappe.re_route[tmp] = window.location.hash;
 };
 
+frappe.has_route_options = function() {
+	return Boolean(Object.keys(frappe.route_options || {}).length);
+}
 
 frappe._cur_route = null;
 

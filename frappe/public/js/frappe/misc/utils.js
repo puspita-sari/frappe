@@ -1,6 +1,7 @@
 // Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 // MIT License. See license.txt
 
+import deep_equal from "fast-deep-equal";
 frappe.provide('frappe.utils');
 
 Object.assign(frappe.utils, {
@@ -651,21 +652,39 @@ Object.assign(frappe.utils, {
 		};
 	},
 	get_form_link: function(doctype, name, html = false) {
+		const display_name = name;
+		doctype = encodeURIComponent(doctype);
+		name = encodeURIComponent(name);
 		const route = ['#Form', doctype, name].join('/');
 		if (html) {
-			return `<a href="${route}">${name}</a>`;
+			return `<a href="${route}">${display_name}</a>`;
 		}
 		return route;
 	},
 
-	report_total_accumulator: function(column, values, type) {
-		if (column.fieldtype == "Percent" || type === "mean") {
-			return values.reduce((a, b) => ({content: a.content + flt(b.content)})).content / values.length;
-		} else if (frappe.model.is_numeric_field(column.fieldtype)) {
-			return values.reduce((a, b) => ({content: a.content + flt(b.content)})).content;
-		} else {
-			return false;
+	report_column_total: function(values, column, type) {
+		if (values.length > 0) {
+			if (column.column.fieldtype == "Percent" || type === "mean") {
+				return values.reduce((a, b) => a + flt(b)) / values.length;
+			} else if (column.column.fieldtype == "Int") {
+				return values.reduce((a, b) => a + cint(b));
+			} else if (frappe.model.is_numeric_field(column.column.fieldtype)) {
+				return values.reduce((a, b) => a + flt(b));
+			} else {
+				return null;
+			}
 		}
+		else {
+			return null;
+		}
+	},
+
+	deep_equal(a, b) {
+		return deep_equal(a, b);
+	},
+
+	is_rtl() {
+		return ["ar", "he", "fa"].includes(frappe.boot.lang);
 	}
 });
 

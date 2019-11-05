@@ -340,11 +340,12 @@ _f.Frm.prototype.refresh_header = function(is_a_different_doc) {
 	this.document_flow.refresh();
 	this.dashboard.refresh();
 
-	if(this.meta.is_submittable &&
-		this.perm[0] && this.perm[0].submit &&
-		!this.is_dirty() &&
-		!this.is_new() &&
-		this.doc.docstatus===0) {
+	if(this.meta.is_submittable
+		&& this.perm[0] && this.perm[0].submit
+		&& !this.is_dirty()
+		&& !this.is_new()
+		&& !frappe.model.has_workflow(this.doctype) // show only if no workflow
+		&& this.doc.docstatus===0) {
 		this.dashboard.add_comment(__('Submit this document to confirm'), 'orange', true);
 	}
 
@@ -614,7 +615,7 @@ _f.Frm.prototype.trigger_link_fields = function() {
 	// trigger link fields which have default values set
 	if (this.is_new() && this.doc.__run_link_triggers) {
 		$.each(this.fields_dict, function(fieldname, field) {
-			if (field.df.fieldtype=="Link" && this.doc[fieldname]) {
+			if (in_list(['Link', 'Dynamic Link'], field.df.fieldtype) && this.doc[fieldname]) {
 				// triggers add fetch, sets value in model and runs triggers
 				field.set_value(this.doc[fieldname]);
 			}
@@ -714,19 +715,25 @@ _f.Frm.prototype._save = function(save_action, callback, btn, on_error, resolve,
 		frappe.utils.scroll_to(0);
 	}
 	var after_save = function(r) {
-		if(!r.exc) {
-			if (["Save", "Update", "Amend"].indexOf(save_action)!==-1) {
+		if (!r.exc) {
+			if (["Save", "Update", "Amend"].indexOf(save_action) !== -1) {
 				frappe.utils.play_sound("click");
 			}
 
 			me.script_manager.trigger("after_save");
+			// submit comment if entered
+
+			if (me.timeline) {
+				me.timeline.comment_area.submit();
+			}
 			me.refresh();
 		} else {
-			if(on_error) {
+			if (on_error) {
 				on_error();
 				reject();
 			}
 		}
+
 		callback && callback(r);
 		resolve();
 	};

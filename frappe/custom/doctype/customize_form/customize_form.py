@@ -38,6 +38,7 @@ docfield_properties = {
 	'fieldtype': 'Select',
 	'options': 'Text',
 	'fetch_from': 'Small Text',
+	'fetch_if_empty': 'Check',
 	'permlevel': 'Int',
 	'width': 'Data',
 	'print_width': 'Data',
@@ -87,6 +88,9 @@ class CustomizeForm(Document):
 
 		if self.doc_type in core_doctypes_list:
 			return frappe.msgprint(_("Core DocTypes cannot be customized."))
+
+		if meta.issingle:
+			return frappe.msgprint(_("Single DocTypes cannot be customized."))
 
 		if meta.custom:
 			return frappe.msgprint(_("Only standard DocTypes are allowed to be customized from Customize Form."))
@@ -148,6 +152,7 @@ class CustomizeForm(Document):
 			return
 
 		self.flags.update_db = False
+		self.flags.rebuild_doctype_for_global_search = False
 
 		self.set_property_setters()
 		self.update_custom_fields()
@@ -162,6 +167,10 @@ class CustomizeForm(Document):
 			frappe.msgprint(_("{0} updated").format(_(self.doc_type)))
 		frappe.clear_cache(doctype=self.doc_type)
 		self.fetch_to_customize()
+
+		if self.flags.rebuild_doctype_for_global_search:
+			frappe.enqueue('frappe.utils.global_search.rebuild_for_doctype',
+				now=True, doctype=self.doc_type)
 
 	def set_property_setters(self):
 		meta = frappe.get_meta(self.doc_type)
@@ -189,7 +198,7 @@ class CustomizeForm(Document):
 						continue
 
 					elif property == "reqd" and \
-						((frappe.db.get_value("DocField", 
+						((frappe.db.get_value("DocField",
 							{"parent":self.doc_type,"fieldname":df.fieldname}, "reqd") == 1) \
 							and (df.get(property) == 0)):
 						frappe.msgprint(_("Row {0}: Not allowed to disable Mandatory for standard fields")\
@@ -222,6 +231,10 @@ class CustomizeForm(Document):
 					elif property == 'translatable' and not supports_translation(df.get('fieldtype')):
 						frappe.msgprint(_("You can't set 'Translatable' for field {0}").format(df.label))
 						continue
+
+					elif (property == 'in_global_search' and
+						df.in_global_search != meta_df[0].get("in_global_search")):
+						self.flags.rebuild_doctype_for_global_search = True
 
 					self.make_property_setter(property=property, value=df.get(property),
 						property_type=docfield_properties[property], fieldname=df.fieldname)
