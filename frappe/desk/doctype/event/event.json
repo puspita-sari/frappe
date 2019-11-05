@@ -887,7 +887,7 @@
  "issingle": 0, 
  "istable": 0, 
  "max_attachments": 0, 
- "modified": "2018-09-25 12:40:33.958600", 
+ "modified": "2019-06-12 18:49:34.137043", 
  "modified_by": "Administrator", 
  "module": "Desk", 
  "name": "Event", 
@@ -933,7 +933,7 @@
   }
  ], 
  "quick_entry": 0, 
- "read_only": 1, 
+ "read_only": 0, 
  "read_only_onload": 0, 
  "show_name_in_global_search": 0, 
  "sort_order": "DESC", 

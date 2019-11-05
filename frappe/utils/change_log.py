@@ -214,6 +214,7 @@ def add_message_to_redis(update_json):
 
 @frappe.whitelist()
 def show_update_popup():
+	return
 	cache = frappe.cache()
 	user  = frappe.session.user
 

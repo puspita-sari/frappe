@@ -10,7 +10,7 @@ frappe.ui.form.PrintPreview = Class.extend({
 		this.wrapper = this.frm.page.add_view("print", frappe.render_template("print_layout", {}));
 
 		// only system manager can edit
-		this.wrapper.find(".btn-print-edit").toggle(frappe.user.has_role("System Manager"));
+		this.wrapper.find(".btn-print-edit").toggle(frappe.user.has_role("System Manager") || frappe.user.has_role("Sales Manager"));
 	},
 	bind_events: function () {
 		var me = this;

@@ -263,7 +263,7 @@ def has_common(l1, l2):
 	"""Returns truthy value if there are common elements in lists l1 and l2"""
 	return set(l1) & set(l2)
 
-def flt(s, precision=None):
+def flt(s, precision=None, rounding="auto"):
 	"""Convert to float (ignore commas)"""
 	if isinstance(s, string_types):
 		s = s.replace(',','')
@@ -271,7 +271,10 @@ def flt(s, precision=None):
 	try:
 		num = float(s)
 		if precision is not None:
-			num = rounded(num, precision)
+			if num < 0:
+				num = rounded(num * -1, precision, rounding) * -1
+			else:
+				num = rounded(num, precision, rounding)
 	except Exception:
 		num = 0
 
@@ -324,7 +327,7 @@ def ceil(s):
 def cstr(s, encoding='utf-8'):
 	return frappe.as_unicode(s, encoding)
 
-def rounded(num, precision=0):
+def rounded(num, precision=0, rounding="auto"):
 	"""round method for round halfs to nearest even algorithm aka banker's rounding - compatible with python3"""
 	precision = cint(precision)
 	multiplier = 10 ** precision
@@ -338,7 +341,7 @@ def rounded(num, precision=0):
 	if not precision and decimal_part == 0.5:
 		num = floor if (floor % 2 == 0) else floor + 1
 	else:
-		num = round(num)
+		num = round(num) if rounding == "auto" else math.floor(num) if rounding == "down" else math.ceil(num)
 
 	return (num / multiplier) if precision else num
 
@@ -497,7 +500,7 @@ def get_number_format_info(format):
 #
 # convert currency to words
 #
-def money_in_words(number, main_currency = None, fraction_currency=None):
+def money_in_words(number, main_currency = None, fraction_currency=None, lang=None):
 	"""
 	Returns string in words with currency and fraction currency.
 	"""
@@ -518,7 +521,7 @@ def money_in_words(number, main_currency = None, fraction_currency=None):
 	if not main_currency:
 		main_currency = d.get('currency', 'INR')
 	if not fraction_currency:
-		fraction_currency = frappe.db.get_value("Currency", main_currency, "fraction", cache=True) or _("Cent")
+		fraction_currency = frappe.db.get_value("Currency", main_currency, "fraction", cache=True) or _("Cent", lang)
 
 	number_format = frappe.db.get_value("Currency", main_currency, "number_format", cache=True) or \
 		frappe.db.get_default("number_format") or "#,###.##"
@@ -539,25 +542,26 @@ def money_in_words(number, main_currency = None, fraction_currency=None):
 
 	# 0.00
 	if main == '0' and fraction in ['00', '000']:
-		out = "{0} {1}".format(main_currency, _('Zero'))
+		out = "{0} {1}".format(main_currency, _('Zero', lang))
 	# 0.XX
 	elif main == '0':
-		out = _(in_words(fraction, in_million).title()) + ' ' + fraction_currency
+		out = _(in_words(fraction, in_million, lang).title(), lang) + ' ' + fraction_currency
 	else:
-		out = main_currency + ' ' + _(in_words(main, in_million).title())
+		out = main_currency + ' ' + _(in_words(main, in_million, lang).title(), lang)
 		if cint(fraction):
-			out = out + ' ' + _('and') + ' ' + _(in_words(fraction, in_million).title()) + ' ' + fraction_currency
+			out = out + ' ' + _('and', lang) + ' ' + _(in_words(fraction, in_million, lang).title(), lang) + ' ' + fraction_currency
 
-	return out + ' ' + _('only.')
+	return out
 
 #
 # convert number to words
 #
-def in_words(integer, in_million=True):
+def in_words(integer, in_million=True, lang=None):
 	"""
 	Returns string in words for the given integer.
 	"""
 	locale = 'en_IN' if not in_million else frappe.local.lang
+	locale = lang if lang is not None else locale
 	integer = int(integer)
 	try:
 		ret = num2words(integer, lang=locale)

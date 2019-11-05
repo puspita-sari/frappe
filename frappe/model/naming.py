@@ -92,17 +92,17 @@ def make_autoname(key='', doctype='', doc=''):
 
    **Autoname rules:**
 
-         * The key is separated by '.'
-         * '####' represents a series. The string before this part becomes the prefix:
-            Example: ABC.#### creates a series ABC0001, ABC0002 etc
-         * 'MM' represents the current month
-         * 'YY' and 'YYYY' represent the current year
+		 * The key is separated by '.'
+		 * '####' represents a series. The string before this part becomes the prefix:
+			Example: ABC.#### creates a series ABC0001, ABC0002 etc
+		 * 'MM' represents the current month
+		 * 'YY' and 'YYYY' represent the current year
 
 
    *Example:*
 
-         * DE/./.YY./.MM./.##### will create a series like
-           DE/09/01/0001 where 09 is the year, 01 is the month and 0001 is the series
+		 * DE/./.YY./.MM./.##### will create a series like
+		   DE/09/01/0001 where 09 is the year, 01 is the month and 0001 is the series
 	"""
 	if key == "hash":
 		return frappe.generate_hash(doctype, 10)
@@ -126,6 +126,12 @@ def parse_naming_series(parts, doctype='', doc=''):
 	today = now_datetime()
 	for e in parts:
 		part = ''
+		convert_to_roman = False
+
+		if e.startswith('&'):
+			convert_to_roman = True
+			e = e[1:]
+
 		if e.startswith('#'):
 			if not series_set:
 				digits = len(e)
@@ -145,11 +151,30 @@ def parse_naming_series(parts, doctype='', doc=''):
 			part = doc.get(e)
 		else:
 			part = e
+		
+		if convert_to_roman:
+			try:
+				part = int_to_roman(int(part))
+			except:
+				pass
 
 		if isinstance(part, string_types):
 			n += part
 
 	return n
+
+def int_to_roman(number):
+	ROMAN = [
+		(1000, "M"),( 900, "CM"),( 500, "D"),( 400, "CD"),( 100, "C"),(  90, "XC"),(  50, "L"),(  40, "XL"),
+		(  10, "X"),(   9, "IX"),(   5, "V"),(   4, "IV"),(   1, "I"),
+	]
+	result = []
+	for (arabic, roman) in ROMAN:
+		(factor, number) = divmod(number, arabic)
+		result.append(roman * factor)
+		if number == 0:
+			break
+	return "".join(result)
 
 
 def getseries(key, digits, doctype=''):

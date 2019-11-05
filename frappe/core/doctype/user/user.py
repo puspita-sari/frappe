@@ -121,6 +121,7 @@ class User(Document):
 			frappe.local.login_manager.logout(user=self.name)
 
 	def add_system_manager_role(self):
+		return False
 		# if adding system manager, do nothing
 		if not cint(self.enabled) or ("System Manager" in [user_role.role for user_role in
 				self.get("roles")]):
@@ -295,6 +296,7 @@ class User(Document):
 			delayed=(not now) if now!=None else self.flags.delay_emails, retry=3)
 
 	def a_system_manager_should_exist(self):
+		return False
 		if not self.get_other_system_managers():
 			throw(_("There should remain at least one System Manager"))
 
@@ -541,7 +543,21 @@ def get_all_roles(arg=None):
 		"restrict_to_domain": ("in", active_domains)
 	}, order_by="name")
 
-	return [ role.get("name") for role in roles ]
+	# return [ role.get("name") for role in roles ]
+	roles_filter = frappe.get_all("User Permission", filters={
+		"allow": "Role",
+		"user": frappe.session.user
+	}, fields=["for_value"])
+	if roles_filter and len(roles_filter) > 0:
+		return [ role.get("for_value") for role in roles_filter ]
+
+ 	ret = [ role.get("name") for role in roles ]
+
+ 	# Hilangkan role System Manager jika
+	# user tidak punya role System Manager
+	if "System Manager" not in frappe.get_roles():
+		ret.remove("System Manager")
+	return ret
 
 @frappe.whitelist()
 def get_roles(arg=None):
