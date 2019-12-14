@@ -63,8 +63,10 @@ def update_add_node(doc, parent, parent_field):
 			.format(doctype), parent)[0]
 		validate_loop(doc.doctype, doc.name, left, right)
 	else: # root
-		right = frappe.db.sql("select ifnull(max(rgt),0)+1 from `tab%s` \
-			where ifnull(`%s`,'') =''" % (doctype, parent_field))[0][0]
+		right = frappe.db.sql("""
+			SELECT COALESCE(MAX(rgt), 0) + 1 FROM `tab{0}`
+			WHERE COALESCE(`{1}`, '') = ''
+		""".format(doctype, parent_field))[0][0]
 	right = right or 1
 
 	# update all on the right
@@ -181,6 +183,10 @@ def validate_loop(doctype, name, lft, rgt):
 		frappe.throw(_("Item cannot be added to its own descendents"), NestedSetRecursionError)
 
 class NestedSet(Document):
+	def __setup__(self):
+		if self.meta.get("nsm_parent_field"):
+			self.nsm_parent_field = self.meta.nsm_parent_field
+
 	def on_update(self):
 		update_nsm(self)
 		self.validate_ledger()
@@ -188,6 +194,9 @@ class NestedSet(Document):
 	def on_trash(self, allow_root_deletion=False):
 		if not getattr(self, 'nsm_parent_field', None):
 			self.nsm_parent_field = frappe.scrub(self.doctype) + "_parent"
+
+		if not self.get(self.nsm_parent_field):
+			self.nsm_parent_field = "parent_" + frappe.scrub(self.doctype)
 
 		parent = self.get(self.nsm_parent_field)
 		if not parent and not allow_root_deletion:
@@ -235,11 +244,16 @@ class NestedSet(Document):
 
 	def validate_one_root(self):
 		if not self.get(self.nsm_parent_field):
-			if frappe.db.sql("""select count(*) from `tab%s` where
-				ifnull(%s, '')=''""" % (self.doctype, self.nsm_parent_field))[0][0] > 1:
-				frappe.throw(_("""Multiple root nodes not allowed: {0} {1}""".format(self.doctype, self.nsm_parent_field)), NestedSetMultipleRootsError)
+			if self.get_root_node_count() > 1:
+				frappe.throw(_("""Multiple root nodes not allowed."""), NestedSetMultipleRootsError)
+
+	def get_root_node_count(self):
+		return frappe.db.count(self.doctype, {
+			self.nsm_parent_field: ''
+		})
 
 	def validate_ledger(self, group_identifier="is_group"):
+		return
 		if hasattr(self, group_identifier) and not bool(self.get(group_identifier)):
 			if frappe.db.sql("""select name from `tab{0}` where {1}=%s and docstatus!=2"""
 				.format(self.doctype, self.nsm_parent_field), (self.name)):
@@ -265,11 +279,12 @@ def get_ancestors_of(doctype, name, order_by="lft desc", limit=None):
 
 	return result or []
 
-def get_descendants_of(doctype, name, order_by="lft desc", limit=None):
+def get_descendants_of(doctype, name, order_by="lft desc", limit=None,
+	ignore_permissions=False):
 	'''Return descendants of the current record'''
 	lft, rgt = frappe.db.get_value(doctype, name, ['lft', 'rgt'])
 
 	result = [d["name"] for d in frappe.db.get_list(doctype, {"lft": [">", lft], "rgt": ["<", rgt]},
-		"name", order_by=order_by, limit_page_length=limit)]
+		"name", order_by=order_by, limit_page_length=limit, ignore_permissions=ignore_permissions)]
 
 	return result or []
