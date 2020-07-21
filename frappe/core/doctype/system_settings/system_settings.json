@@ -114,7 +114,7 @@
    "fieldname": "date_format",
    "fieldtype": "Select",
    "label": "Date Format",
-   "options": "yyyy-mm-dd\ndd-mm-yyyy\ndd/mm/yyyy\ndd.mm.yyyy\nmm/dd/yyyy\nmm-dd-yyyy",
+   "options": "yyyy-mm-dd\ndd-mm-yyyy\ndd/mm/yyyy\ndd.mm.yyyy\nmm/dd/yyyy\nmm-dd-yyyy\ndd-MMM-yyyy",
    "reqd": 1
   },
   {
@@ -401,7 +401,7 @@
  ],
  "icon": "fa fa-cog",
  "issingle": 1,
- "modified": "2019-08-16 08:26:45.936626",
+ "modified": "2020-03-22 15:24:34.625401",
  "modified_by": "Administrator",
  "module": "Core",
  "name": "System Settings",

@@ -204,7 +204,8 @@ frappe.ui.form.ScriptManager = Class.extend({
 	},
 	copy_from_first_row: function(parentfield, current_row, fieldnames) {
 		var data = this.frm.doc[parentfield];
-		if(data.length===1 || data[0]===current_row) return;
+		var me = this;
+		// if(data.length===1 || data[0]===current_row) return;
 
 		if(typeof fieldnames==='string') {
 			fieldnames = [fieldnames];
@@ -212,7 +213,7 @@ frappe.ui.form.ScriptManager = Class.extend({
 
 		$.each(fieldnames, function(i, fieldname) {
 			frappe.model.set_value(current_row.doctype, current_row.name, fieldname,
-				data[0][fieldname]);
+				data[0][fieldname] || me.frm.doc[fieldname]);
 		});
 	}
 });

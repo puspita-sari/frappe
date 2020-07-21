@@ -324,3 +324,10 @@ global_search_doctypes = {
 		{"doctype": "Web Form"}
 	]
 }
+
+jenv = {
+    "methods": [
+        "get_week:hansaya.hansaya.doctype.occupation_report.occupation_report.get_week_count"
+    ],
+    "filters": []
+}

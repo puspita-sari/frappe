@@ -115,8 +115,9 @@ def return_action_confirmation_page(doc, action, action_link, alert_doc_change=F
 		'alert_doc_change': alert_doc_change
 	}
 
-	template_params['pdf_link'] = get_pdf_link(doc.get('doctype'), doc.get('name'))
-
+	# template_params['pdf_link'] = get_pdf_link(doc.get('doctype'), doc.get('name'))
+	template_params['pdf_link'] = frappe.utils.get_url_to_form(doc.get('doctype'), doc.get('name'))
+	
 	frappe.respond_as_web_page(title=None,
 		html=None,
 		indicator_color='blue',
@@ -193,19 +194,20 @@ def create_workflow_actions_for_users(users, doc):
 
 def send_workflow_action_email(users_data, doc):
 	common_args = get_common_email_args(doc)
-	message = common_args.pop('message', None)
-	for d in users_data:
-		email_args = {
-			'recipients': [d.get('email')],
-			'args': {
-				'actions': d.get('possible_actions'),
-				'message': message
-			},
-			'reference_name': doc.name,
-			'reference_doctype': doc.doctype
-		}
-		email_args.update(common_args)
-		enqueue(method=frappe.sendmail, queue='short', **email_args)
+	if common_args:
+		message = common_args.pop('message', None)
+		for d in users_data:
+			email_args = {
+				'recipients': [d.get('email')],
+				'args': {
+					'actions': d.get('possible_actions'),
+					'message': message
+				},
+				'reference_name': doc.name,
+				'reference_doctype': doc.doctype
+			}
+			email_args.update(common_args)
+			enqueue(method=frappe.sendmail, queue='short', **email_args)
 
 def get_workflow_action_url(action, doc, user):
 	apply_action_method = "/api/method/frappe.workflow.doctype.workflow_action.workflow_action.apply_action"
@@ -275,8 +277,7 @@ def get_common_email_args(doc):
 		subject = frappe.render_template(email_template.subject, vars(doc))
 		response = frappe.render_template(email_template.response, vars(doc))
 	else:
-		subject = _('Workflow Action')
-		response = _('{0}: {1}'.format(doctype, docname))
+		return None
 
 	common_args = {
 		'template': 'workflow_action',
